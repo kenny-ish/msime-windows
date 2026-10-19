@@ -1543,8 +1543,14 @@ bool adjust_candidate_ranking(const std::string &main_db_path, const std::string
             kind == DictionaryKind::Wubi ? item.pinyin : candidate_dictionary_key(item, context_key);
         owns_entry_key.push_back(item_key == entry_key);
     }
-    const auto selected = std::find_if(database_candidates.begin(), database_candidates.end(),
-                                       [&](const WordItem &item) { return item.word == value; });
+    const auto selected =
+        std::find_if(database_candidates.begin(), database_candidates.end(), [&](const WordItem &item) {
+            if (item.word != value)
+                return false;
+            const std::string item_key =
+                kind == DictionaryKind::Wubi ? item.pinyin : candidate_dictionary_key(item, context_key);
+            return item_key == entry_key;
+        });
     if (selected == database_candidates.end())
     {
         rollback_user();

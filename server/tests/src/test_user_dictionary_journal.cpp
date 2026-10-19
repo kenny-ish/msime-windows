@@ -467,6 +467,36 @@ TEST_CASE(UserDictionarySupportsFixedPositionsAndDeferredSafeRanking)
     std::filesystem::remove_all(directory);
 }
 
+TEST_CASE(UserDictionaryRankingMatchesTheSelectedPronunciation)
+{
+    const auto directory =
+        std::filesystem::temp_directory_path() / ("msime-duplicate-ranking-" + std::to_string(GetCurrentProcessId()));
+    std::filesystem::create_directories(directory);
+    const auto user_path = directory / "msime_user.db";
+    const auto main_path = directory / "msime.db";
+    {
+        TestDatabase db(main_path);
+        db.exec("CREATE TABLE tbl_1_e(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                "INSERT INTO tbl_1_e VALUES('en','e','啊',100);"
+                "INSERT INTO tbl_1_e VALUES('eng','e','啊',80);"
+                "INSERT INTO tbl_1_e VALUES('en','e','嗯',90);");
+    }
+    const std::vector<WordItem> candidates = {
+        {"ng", "啊", 100, CandidateSource::Database, "en"},
+        {"ng", "啊", 80, CandidateSource::Database, "eng"},
+        {"ng", "嗯", 90, CandidateSource::Database, "en"},
+    };
+
+    REQUIRE(user_dictionary::adjust_candidate_ranking(test::Utf8(main_path), test::Utf8(user_path), "ng", candidates,
+                                                      "eng", "啊", "pin", 1, 1, true));
+    {
+        TestDatabase db(main_path);
+        REQUIRE(db.scalar_int("SELECT weight FROM tbl_1_e WHERE key='eng' AND value='啊'") > 100);
+        REQUIRE_EQ(db.scalar_int("SELECT weight FROM tbl_1_e WHERE key='en' AND value='啊'"), 100);
+    }
+    std::filesystem::remove_all(directory);
+}
+
 TEST_CASE(UserDictionaryRebalanceKeepsWeightsBounded)
 {
     const auto directory =
